@@ -97,8 +97,13 @@ mvn clean install
 mvn spring-boot:run
 ```
 ---
-## 📒Summary Notes
 
+## 📹Video Demonstration
+```bash
+https://screenrec.com/share/f41xZOCRDG
+```
+
+## 📒Summary Notes
 ```bash
 https://www.notion.so/1ff9d11ac5d58078b095e4737a18baeb?v=1ff9d11ac5d58076b127000caea35997&source=copy_link
 ```
