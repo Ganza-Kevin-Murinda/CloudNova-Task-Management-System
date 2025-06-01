@@ -3,20 +3,19 @@ package com.taskmgt.CloudNova.repository;
 import com.taskmgt.CloudNova.model.Task;
 import com.taskmgt.CloudNova.model.ETaskStatus;
 import com.taskmgt.CloudNova.model.EPriority;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Repository
 @Slf4j
+@RequiredArgsConstructor
 public class TaskSearchRepository {
 
-    private final ConcurrentHashMap<Long, Task> tasks = new ConcurrentHashMap<>();
-    private final AtomicLong idGenerator = new AtomicLong(1);
+    private final TaskStore taskStore;
 
     // ─── Search & Queries ────────────────────────────────────────────
 
@@ -34,7 +33,7 @@ public class TaskSearchRepository {
         }
 
         try {
-            Task task = tasks.get(id);
+            Task task = taskStore.getTasks().get(id);
             if (task != null) {
                 log.debug("Found task: {} with ID: {}", task.getTitle(), id);
                 return Optional.of(task);
@@ -62,7 +61,7 @@ public class TaskSearchRepository {
         }
 
         try {
-            List<Task> userTasks = tasks.values().stream()
+            List<Task> userTasks = taskStore.getTasks().values().stream()
                     .filter(task -> userId.equals(task.getUserId()))
                     .collect(Collectors.toList());
 
@@ -88,7 +87,7 @@ public class TaskSearchRepository {
         }
 
         try {
-            List<Task> statusTasks = tasks.values().stream()
+            List<Task> statusTasks = taskStore.getTasks().values().stream()
                     .filter(task -> status.equals(task.getStatus()))
                     .collect(Collectors.toList());
 
@@ -114,7 +113,7 @@ public class TaskSearchRepository {
         }
 
         try {
-            List<Task> priorityTasks = tasks.values().stream()
+            List<Task> priorityTasks = taskStore.getTasks().values().stream()
                     .filter(task -> priority.equals(task.getPriority()))
                     .collect(Collectors.toList());
 
@@ -143,7 +142,7 @@ public class TaskSearchRepository {
         }
 
         try {
-            List<Task> filteredTasks = tasks.values().stream()
+            List<Task> filteredTasks = taskStore.getTasks().values().stream()
                     .filter(task -> userId.equals(task.getUserId()) && status.equals(task.getStatus()))
                     .collect(Collectors.toList());
 
@@ -170,7 +169,7 @@ public class TaskSearchRepository {
         }
 
         try {
-            List<Task> filteredTasks = tasks.values().stream()
+            List<Task> filteredTasks = taskStore.getTasks().values().stream()
                     .filter(task -> userId.equals(task.getUserId()) && priority.equals(task.getPriority()))
                     .collect(Collectors.toList());
 
@@ -196,7 +195,7 @@ public class TaskSearchRepository {
         }
 
         try {
-            List<Task> matchingTasks = tasks.values().stream()
+            List<Task> matchingTasks = taskStore.getTasks().values().stream()
                     .filter(task -> task.getTitle() != null &&
                             task.getTitle().toLowerCase().contains(titlePart.toLowerCase()))
                     .collect(Collectors.toList());
@@ -233,7 +232,7 @@ public class TaskSearchRepository {
         }
 
         try {
-            List<Task> pendingTasks = tasks.values().stream()
+            List<Task> pendingTasks = taskStore.getTasks().values().stream()
                     .filter(task -> userId.equals(task.getUserId()) &&
                             (ETaskStatus.TODO.equals(task.getStatus()) ||
                                     ETaskStatus.IN_PROGRESS.equals(task.getStatus())))
@@ -265,7 +264,7 @@ public class TaskSearchRepository {
         log.debug("Finding all tasks sorted by creation date");
 
         try {
-            List<Task> sortedTasks = tasks.values().stream()
+            List<Task> sortedTasks = taskStore.getTasks().values().stream()
                     .sorted((t1, t2) -> {
                         if (t1.getCreatedDate() == null && t2.getCreatedDate() == null) return 0;
                         if (t1.getCreatedDate() == null) return 1;
@@ -296,7 +295,7 @@ public class TaskSearchRepository {
         }
 
         try {
-            List<Task> sortedTasks = tasks.values().stream()
+            List<Task> sortedTasks = taskStore.getTasks().values().stream()
                     .filter(task -> userId.equals(task.getUserId()))
                     .sorted((t1, t2) -> {
                         // Define priority order: HIGH = 3, MEDIUM = 2, LOW = 1

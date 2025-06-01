@@ -91,10 +91,22 @@ public class UserRepository {
 
         validateIdExists(user.getId());
 
-        user.setUpdateTimestamp();
-        users.put(user.getId(), user);
-        log.info("User updated with ID: {}", user.getId());
-        return user;
+        User existingUser = users.get(user.getId());
+        if (existingUser == null) {
+            throw new IllegalArgumentException("User with ID " + user.getId() + " does not exist");
+        }
+
+        // Update only the mutable fields
+        existingUser.setUsername(user.getUsername());
+        existingUser.setEmail(user.getEmail());
+        existingUser.setFirstName(user.getFirstName());
+        existingUser.setLastName(user.getLastName());
+        existingUser.setUpdateTimestamp(); // only update the updatedDate
+
+        users.put(existingUser.getId(), existingUser);
+
+        log.info("User updated with ID: {}", existingUser.getId());
+        return existingUser;
     }
 
     /**

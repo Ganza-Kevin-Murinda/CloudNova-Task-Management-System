@@ -2,22 +2,18 @@ package com.taskmgt.CloudNova.repository;
 
 import com.taskmgt.CloudNova.model.Task;
 import com.taskmgt.CloudNova.model.ETaskStatus;
-import com.taskmgt.CloudNova.model.EPriority;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 @Repository
 @Slf4j
+@RequiredArgsConstructor
 public class TaskRepository {
 
-    private final ConcurrentHashMap<Long, Task> tasks = new ConcurrentHashMap<>();
-    private final AtomicLong idGenerator = new AtomicLong(1);
-
+    private final TaskStore taskStore;
 
     // ─── Core CRUD ───────────────────────────────────────────────────
 
@@ -32,11 +28,11 @@ public class TaskRepository {
         try {
             validateIdNotExists(task.getId());
 
-            Long newId = idGenerator.getAndIncrement();
+            Long newId = taskStore.getIdGenerator().getAndIncrement();
             task.setId(newId);
             task.setCreationTimestamp();
 
-            tasks.put(task.getId(), task);
+            taskStore.getTasks().put(task.getId(), task);
             log.info("Successfully created task: {} with ID: {}", task.getTitle(), task.getId());
 
             return task;
@@ -54,7 +50,7 @@ public class TaskRepository {
         log.debug("Finding all tasks");
 
         try {
-            List<Task> allTasks = new ArrayList<>(tasks.values());
+            List<Task> allTasks = new ArrayList<>(taskStore.getTasks().values());
             log.debug("Found {} tasks", allTasks.size());
             return allTasks;
         } catch (Exception e) {
@@ -70,11 +66,10 @@ public class TaskRepository {
      */
     public boolean deleteById(Long id) {
         log.debug("Attempting to delete task by ID: {}", id);
-
         validateIdExists(id);
 
         try {
-            Task removedTask = tasks.remove(id);
+            Task removedTask = taskStore.getTasks().remove(id);
             boolean deleted = removedTask != null;
 
             if (deleted) {
@@ -101,17 +96,30 @@ public class TaskRepository {
         try {
             validateIdExists(task.getId());
 
-            task.setUpdateTimestamp();
-            tasks.put(task.getId(), task);
+            Task existingTask = taskStore.getTasks().get(task.getId());
+            if (existingTask == null) {
+                throw new IllegalArgumentException("Task with ID " + task.getId() + " does not exist");
+            }
 
-            log.info("Successfully updated task: {} with ID: {}", task.getTitle(), task.getId());
+            existingTask.setTitle(task.getTitle());
+            existingTask.setDescription(task.getDescription());
+            existingTask.setPriority(task.getPriority());
+            existingTask.setStatus(task.getStatus());
+            existingTask.setUserId(task.getUserId());
 
-            return task;
+            existingTask.setUpdateTimestamp();
+
+            taskStore.getTasks().put(existingTask.getId(), existingTask);
+
+            log.info("Successfully updated task: {} with ID: {}", existingTask.getTitle(), existingTask.getId());
+
+            return existingTask;
         } catch (Exception e) {
             log.error("Error updating task: {}", e.getMessage(), e);
             throw e;
         }
     }
+
 
     /**
      * Delete all tasks by user ID
@@ -127,14 +135,14 @@ public class TaskRepository {
         }
 
         try {
-            List<Long> taskIdsToDelete = tasks.values().stream()
+            List<Long> taskIdsToDelete = taskStore.getTasks().values().stream()
                     .filter(task -> userId.equals(task.getUserId()))
                     .map(Task::getId)
                     .toList();
 
             long deletedCount = 0;
             for (Long taskId : taskIdsToDelete) {
-                if (tasks.remove(taskId) != null) {
+                if (taskStore.getTasks().remove(taskId) != null) {
                     deletedCount++;
                 }
             }
@@ -155,7 +163,7 @@ public class TaskRepository {
         log.debug("Getting task count");
 
         try {
-            long taskCount = tasks.size();
+            long taskCount = taskStore.getTasks().size();
             log.debug("Total tasks count: {}", taskCount);
             return taskCount;
         } catch (Exception e) {
@@ -178,7 +186,7 @@ public class TaskRepository {
         }
 
         try {
-            long userTaskCount = tasks.values().stream()
+            long userTaskCount = taskStore.getTasks().values().stream()
                     .filter(task -> userId.equals(task.getUserId()))
                     .count();
             log.debug("Task count for user ID {}: {}", userId, userTaskCount);
@@ -203,7 +211,7 @@ public class TaskRepository {
         }
 
         try {
-            long statusTaskCount = tasks.values().stream()
+            long statusTaskCount = taskStore.getTasks().values().stream()
                     .filter(task -> status.equals(task.getStatus()))
                     .count();
             log.debug("Task count for status {}: {}", status, statusTaskCount);
@@ -218,53 +226,15 @@ public class TaskRepository {
 
     // ─── Validations ─────────────────────────────────────────────────
 
-    /**
-     * Check if a task exists by ID
-     * @param id the task ID to check
-     * @return true if a task exists, false otherwise
-     */
-    public boolean existsById(Long id) {
-        log.debug("Checking if task exists by ID: {}", id);
-
-        if (id == null) {
-            log.warn("Cannot check existence for null ID");
-            return false;
-        }
-
-        try {
-            boolean exists = tasks.containsKey(id);
-            log.debug("Task with ID {} exists: {}", id, exists);
-            return exists;
-        } catch (Exception e) {
-            log.error("Error checking task existence by ID {}: {}", id, e.getMessage(), e);
-            return false;
-        }
-    }
-
     private void validateIdExists(Long id) {
-        if (id == null || !tasks.containsKey(id)) {
+        if (id == null || !taskStore.getTasks().containsKey(id)) {
             throw new IllegalArgumentException("Task with ID " + id + " does not exist");
         }
     }
 
     private void validateIdNotExists(Long id) {
-        if (id != null && tasks.containsKey(id)) {
-            throw new IllegalArgumentException("Task with " + id + " already exists");
-        }
-    }
-
-    /**
-     * Clear all tasks (for testing purposes)
-     */
-    public void deleteAll() {
-        log.warn("Deleting all tasks from repository");
-        try {
-            int count = tasks.size();
-            tasks.clear();
-            idGenerator.set(1);
-            log.info("Successfully deleted {} tasks", count);
-        } catch (Exception e) {
-            log.error("Error deleting all tasks: {}", e.getMessage(), e);
+        if (id != null && taskStore.getTasks().containsKey(id)) {
+            throw new IllegalArgumentException("Task with ID " + id + " already exists");
         }
     }
 
